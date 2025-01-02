@@ -4,7 +4,6 @@ import Replicate from 'replicate';
 import 'dotenv/config';
 
 export const config = {
-  runtime: 'edge',
 };
 
 export default async function handler(req) {
