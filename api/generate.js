@@ -1,10 +1,9 @@
 // api/generate.js
-import { OpenAI } from 'openai';
-import Replicate from 'replicate';
-
-export const config = {};
-
-export default async function handler(req) {
+export const config = {
+    runtime: 'edge',
+  };
+  
+  export default async function handler(req) {
     if (req.method !== 'POST') {
       return new Response(
         JSON.stringify({ error: 'Method not allowed' }),
@@ -15,105 +14,130 @@ export default async function handler(req) {
       );
     }
     try {
-        const { prompt, name } = await req.json();
-        const openai = new OpenAI({
-            apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-        });
-        const replicate = new Replicate({
-            auth: process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN,
-        });
-
-          const initialPrompt = name
-              ? await generateInitialPrompt(name, openai)
-              : prompt;
-
-        const imageUrl = await generateWithReplicate(initialPrompt, replicate);
-
-
-        return new Response(
-            JSON.stringify({ url: imageUrl, prompt: initialPrompt }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-    }
-    catch (error) {
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            { status: 500, headers: { 'Content-Type': 'application/json' } },
-        );
-    }
-}
-async function generateInitialPrompt(name, openai) {
-    try {
-        const promptResponse = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
+      const { prompt, name } = await req.json();
+  
+      // Validate environment variable exists
+      if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OpenAI API key not configured');
+      }
+      if (!process.env.REPLICATE_API_TOKEN) {
+        throw new Error('Replicate API token not configured');
+      }
+  
+      let initialPrompt;
+      if (name) {
+        // Generate prompt using OpenAI
+        const promptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
             messages: [
-                {
-                    role: 'system',
-                    content: `You are an expert at creating image generation prompts. Focus on creating black and white, line-art style coloring book pages.
-
-If the request includes truly offensive content (does not include politicians, actors, or musicians), respond exactly with "INAPPROPRIATE_CONTENT". Otherwise, create a detailed prompt.`,
-                },
-                {
-                    role: 'user',
-                    content: `Create a descriptive prompt for a black and white children's coloring page featuring ${name}. The image should be line art style with clear outlines, no shading, suitable for coloring in. Include relevant background elements and props that tell a story about ${name}.`,
-                },
+              {
+                role: 'system',
+                content: `You are an expert at creating image generation prompts. Focus on creating black and white, line-art style coloring book pages.
+                
+                If the request includes truly offensive content (does not include politicians, actors, or musicians), respond exactly with "INAPPROPRIATE_CONTENT". Otherwise, create a detailed prompt.`,
+              },
+              {
+                role: 'user',
+                content: `Create a descriptive prompt for a black and white children's coloring page featuring ${name}. The image should be line art style with clear outlines, no shading, suitable for coloring in. Include relevant background elements and props that tell a story about ${name}.`,
+              },
             ],
+            temperature: 0.7,
+            max_tokens: 500
+          }),
         });
-
-        const content = promptResponse.choices[0].message.content;
-        if (content === "INAPPROPRIATE_CONTENT") {
-            throw new Error("INAPPROPRIATE_CONTENT");
+  
+        if (!promptResponse.ok) {
+          throw new Error(`OpenAI API error: ${await promptResponse.text()}`);
         }
-
-        return content;
-    } catch (error) {
-        throw error;
-    }
-}
-const generateWithReplicate = async (prompt, replicate) => {
-    try {
-        const prediction = await replicate.predictions.create({
-            model: "black-forest-labs/flux-1.1-pro-ultra",
-            input: {
-                prompt: prompt,
-                aspect_ratio: "1:1",
-                output_format: "jpg",
-                safety_tolerance: 2,
+  
+        const promptData = await promptResponse.json();
+        initialPrompt = promptData.choices[0].message.content;
+  
+        if (initialPrompt === "INAPPROPRIATE_CONTENT") {
+          throw new Error("INAPPROPRIATE_CONTENT");
+        }
+      } else {
+        initialPrompt = prompt;
+      }
+  
+      // Generate image using Replicate
+      const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
+        },
+        body: JSON.stringify({
+          version: "black-forest-labs/flux-1.1-pro-ultra",
+          input: {
+            prompt: initialPrompt,
+            aspect_ratio: "1:1",
+            output_format: "jpg",
+            safety_tolerance: 2,
+          },
+        }),
+      });
+  
+      if (!replicateResponse.ok) {
+        throw new Error(`Replicate API error: ${await replicateResponse.text()}`);
+      }
+  
+      const prediction = await replicateResponse.json();
+      
+      // Poll for the result
+      let attempts = 0;
+      const maxAttempts = 30;
+      let imageUrl;
+  
+      while (attempts < maxAttempts) {
+        const resultResponse = await fetch(
+          `https://api.replicate.com/v1/predictions/${prediction.id}`,
+          {
+            headers: {
+              "Authorization": `Token ${process.env.REPLICATE_API_TOKEN}`,
+              "Content-Type": "application/json",
             },
-        });
-
-        let status = prediction.status;
-        let predictionResult = prediction;
-        let attempts = 0;
-        const maxAttempts = 30;
-
-        while (status !== "succeeded" && status !== "failed" && status !== "canceled" && attempts < maxAttempts) {
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            try {
-                predictionResult = await replicate.predictions.get(prediction.id);
-                status = predictionResult.status;
-            } catch (pollError) {
-                throw pollError;
-            }
-            attempts++;
+          }
+        );
+  
+        if (!resultResponse.ok) {
+          throw new Error(`Failed to check prediction status: ${await resultResponse.text()}`);
         }
-
-        if (status === "succeeded" && predictionResult.output) {
-            let imageUrl;
-            if (Array.isArray(predictionResult.output)) {
-                imageUrl = predictionResult.output[0];
-            } else if (typeof predictionResult.output === 'string') {
-                imageUrl = predictionResult.output;
-            }
-
-            if (imageUrl && imageUrl.startsWith('http')) {
-                return imageUrl;
-            }
+  
+        const result = await resultResponse.json();
+  
+        if (result.status === "succeeded") {
+          imageUrl = Array.isArray(result.output) ? result.output[0] : result.output;
+          break;
         }
-        if (status === "failed" || status === "canceled") {
-            throw new Error(`Failed to generate image. Status: ${status}`);
+  
+        if (result.status === "failed" || result.status === "canceled") {
+          throw new Error(`Image generation ${result.status}`);
         }
+  
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        attempts++;
+      }
+  
+      if (!imageUrl) {
+        throw new Error("Timeout waiting for image generation");
+      }
+  
+      return new Response(
+        JSON.stringify({ url: imageUrl, prompt: initialPrompt }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+      
     } catch (error) {
-        throw error;
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      );
     }
-};
+  }
