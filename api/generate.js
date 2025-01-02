@@ -1,5 +1,4 @@
 // api/generate.js
-
 export const config = {};
 
 export default async function handler(req) {
