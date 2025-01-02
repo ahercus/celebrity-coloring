@@ -1,4 +1,7 @@
 // api/generate.js
+import { OpenAI } from 'openai';
+import Replicate from 'replicate';
+
 export const config = {};
 
 export default async function handler(req) {
@@ -12,9 +15,23 @@ export default async function handler(req) {
       );
     }
     try {
-        const { prompt } = await req.json();
+        const { prompt, name } = await req.json();
+        const openai = new OpenAI({
+            apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+        });
+        const replicate = new Replicate({
+            auth: process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN,
+        });
+
+          const initialPrompt = name
+              ? await generateInitialPrompt(name, openai)
+              : prompt;
+
+        const imageUrl = await generateWithReplicate(initialPrompt, replicate);
+
+
         return new Response(
-            JSON.stringify({ prompt }),
+            JSON.stringify({ url: imageUrl, prompt: initialPrompt }),
             { status: 200, headers: { 'Content-Type': 'application/json' } },
         );
     }
@@ -25,3 +42,78 @@ export default async function handler(req) {
         );
     }
 }
+async function generateInitialPrompt(name, openai) {
+    try {
+        const promptResponse = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are an expert at creating image generation prompts. Focus on creating black and white, line-art style coloring book pages.
+
+If the request includes truly offensive content (does not include politicians, actors, or musicians), respond exactly with "INAPPROPRIATE_CONTENT". Otherwise, create a detailed prompt.`,
+                },
+                {
+                    role: 'user',
+                    content: `Create a descriptive prompt for a black and white children's coloring page featuring ${name}. The image should be line art style with clear outlines, no shading, suitable for coloring in. Include relevant background elements and props that tell a story about ${name}.`,
+                },
+            ],
+        });
+
+        const content = promptResponse.choices[0].message.content;
+        if (content === "INAPPROPRIATE_CONTENT") {
+            throw new Error("INAPPROPRIATE_CONTENT");
+        }
+
+        return content;
+    } catch (error) {
+        throw error;
+    }
+}
+const generateWithReplicate = async (prompt, replicate) => {
+    try {
+        const prediction = await replicate.predictions.create({
+            model: "black-forest-labs/flux-1.1-pro-ultra",
+            input: {
+                prompt: prompt,
+                aspect_ratio: "1:1",
+                output_format: "jpg",
+                safety_tolerance: 2,
+            },
+        });
+
+        let status = prediction.status;
+        let predictionResult = prediction;
+        let attempts = 0;
+        const maxAttempts = 30;
+
+        while (status !== "succeeded" && status !== "failed" && status !== "canceled" && attempts < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            try {
+                predictionResult = await replicate.predictions.get(prediction.id);
+                status = predictionResult.status;
+            } catch (pollError) {
+                throw pollError;
+            }
+            attempts++;
+        }
+
+        if (status === "succeeded" && predictionResult.output) {
+            let imageUrl;
+            if (Array.isArray(predictionResult.output)) {
+                imageUrl = predictionResult.output[0];
+            } else if (typeof predictionResult.output === 'string') {
+                imageUrl = predictionResult.output;
+            }
+
+            if (imageUrl && imageUrl.startsWith('http')) {
+                return imageUrl;
+            }
+        }
+        if (status === "failed" || status === "canceled") {
+            throw new Error(`Failed to generate image. Status: ${status}`);
+        }
+    } catch (error) {
+        throw error;
+    }
+};
