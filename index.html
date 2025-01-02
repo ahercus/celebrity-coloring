@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎨 Celebrity Coloring Pages Generator 🎨</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Comic+Neue:wght@700&display=swap');
+    
+    /* ---------------------
+       Base page styling
+    ---------------------- */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(-45deg, #ff6b6b, #fad0c4, #a1c4fd, #ffd700);
+      background-size: 400% 400%;
+      animation: gradientBG 10s ease infinite;
+      font-family: 'Comic Neue', cursive;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    @keyframes gradientBG {
+      0%   { background-position: 0% 50%; }
+      50%  { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* ---------------------
+       Header + Title
+    ---------------------- */
+    .header {
+      text-align: center;
+      padding: 3rem;
+      max-width: 1000px;
+      position: relative;
+    }
+
+    .title {
+      font-size: clamp(4rem, 10vw, 7rem);
+      color: #ff4757;
+      text-shadow: 6px 6px 0px #ffbe0b, 12px 12px 0px rgba(0,0,0,0.15);
+      animation: wiggle 2.5s ease-in-out infinite;
+      margin-bottom: 2rem;
+      letter-spacing: 3px;
+    }
+
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(-4deg) scale(1); }
+      50%      { transform: rotate(4deg)  scale(1.05); }
+    }
+
+    /* ---------------------
+       Input container
+    ---------------------- */
+    .input-container {
+      margin: 3rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+      width: 100%;
+      max-width: 800px;
+    }
+
+    .celebrity-input {
+      padding: 2rem;  /* Reduced from 2rem 3rem to give more space */
+      font-size: clamp(1.2rem, 4vw, 2rem);  /* Responsive font size */
+      border: 8px solid #ff4757;
+      border-radius: 60px;
+      width: 100%;
+      max-width: 600px;
+      box-sizing: border-box;  /* This ensures padding doesn't add to width */
+      outline: none;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 12px 0 #ff6b6b, 0 20px 25px rgba(0, 0, 0, 0.15);
+}
+
+    .celebrity-input:focus {
+      transform: scale(1.05) translateY(-6px);
+      box-shadow: 0 16px 0 #ff6b6b, 0 25px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ---------------------
+       Updated button styles (no hover scaling)
+    ---------------------- */
+    .generate-btn, .print-btn {
+      font-size: 2.2rem;
+      padding: 1.8rem 4rem;
+      background: #4CAF50;
+      border: none;
+      border-radius: 60px;
+      color: white;
+      cursor: pointer;
+      font-family: 'Comic Neue', cursive;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 12px 0 #45a049, 0 20px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .generate-btn:disabled, .print-btn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+      box-shadow: 0 12px 0 #999, 0 20px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    /* ---------------------
+       New loader styles
+    ---------------------- */
+    .loader-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: calc(100% - 115px);
+      border-radius: 8px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 1000;
+    }
+
+    .loader {
+      position: relative;
+      height: 200px;
+      width: 200px;
+      border-bottom: 3px solid #ff3d00;
+      box-sizing: border-box;
+      animation: drawLine 4s linear infinite;
+    }
+
+    .loader:before {
+      content: "";
+      position: absolute;
+      left: calc(100% + 14px);
+      bottom: -6px;
+      width: 16px;
+      height: 100px;
+      border-radius: 20px 20px 50px 50px;
+      background-repeat: no-repeat;
+      background-image:
+        linear-gradient(#ff3d00 6px, transparent 0),
+        linear-gradient(45deg, rgba(0, 0, 0, 0.02) 49%, white 51%),
+        linear-gradient(315deg, rgba(0, 0, 0, 0.02) 49%, white 51%),
+        linear-gradient(to bottom, #ffffff 10%, #ff3d00 10%, #ff3d00 90%, #ffffff 90%);
+      background-size: 3px 3px, 8px 8px, 8px 8px, 16px 88px;
+      background-position: center bottom, left 88px, right 88px, left top;
+      transform: rotate(25deg);
+      animation: pencilRot 4s linear infinite;
+    }
+
+    @keyframes drawLine {
+      0%, 100% { width: 0px }
+      45%, 55% { width: 200px }
+    }
+
+    @keyframes pencilRot {
+      0%, 45% {
+        bottom: -6px;
+        left: calc(100% + 14px);
+        transform: rotate(25deg);
+      }
+      55%, 100% {
+        bottom: -12px;
+        left: calc(100% + 16px);
+        transform: rotate(220deg);
+      }
+    }
+
+    /* ---------------------
+       Reaction Container
+    ---------------------- */
+    .reaction-container {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .reaction-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .reaction-btn svg {
+      width: 28px;
+      height: 28px;
+      color: white; /* Controls SVG fill color */
+    }
+
+    .save-btn {
+      background-color: #4CAF50;
+    }
+
+    .loop-btn {
+      background-color: #FF4757;
+    }
+
+    .result-container {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      margin: 20px auto;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Hidden block that stores SVG icons -->
+  <div style="display: none;">
+    <!-- Floppy Disk / Save Icon -->
+    <svg id="save-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" 
+         xmlns="http://www.w3.org/2000/svg">
+      <path d="M17 3H5C3.89 3 3 3.9 3 5V19C3 20.1 3.89 21 5 21H19C20.1 21 21 20.1 21 19V7L17 3ZM19 19H5V5H16.17L19 7.83V19ZM12 12C10.34 12 9 13.34 9 15C9 16.66 10.34 18 12 18C13.66 18 15 16.66 15 15C15 13.34 13.66 12 12 12ZM6 6H15V10H6V6Z" 
+            fill="currentColor"/>
+    </svg>
+
+    <!-- Loop / Regenerate Icon -->
+    <svg id="loop-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" 
+         xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 4V1L8 5L12 9V6C15.31 6 18 8.69 18 12C18 13.01 17.75 13.97 17.3 14.8L18.76 16.26C19.54 15.03 20 13.57 20 12C20 7.58 16.42 4 12 4ZM12 18C8.69 18 6 15.31 6 12C6 10.99 6.25 10.03 6.7 9.2L5.24 7.74C4.46 8.97 4 10.43 4 12C4 16.42 7.58 20 12 20V23L16 19L12 15V18Z" 
+            fill="currentColor"/>
+    </svg>
+  </div>
+
+  <div class="header">
+    <h1 class="title">🎨 Celebrity Coloring Pages 🎨</h1>
+  </div>
+
+  <div class="input-container">
+    <input type="text" class="celebrity-input" placeholder="Enter celebrity name...">
+    <button class="generate-btn">✨ Generate! ✨</button>
+  </div>
+
+  <!-- The container for the generated image/results -->
+  <div id="resultContainer" class="result-container"></div>
+
+  <!-- The gallery container -->
+  <div class="gallery" id="gallery"></div>
+
+  <script>
+    let currentCelebrity = '';
+    let currentPrompt = '';
+    const loaderContainer = document.createElement('div');
+      loaderContainer.className = 'loader-container';
+      loaderContainer.innerHTML = '<span class="loader"></span>';
+
+    async function handleGeneration(regenerate = false) {
+      const inputField      = document.querySelector('.celebrity-input');
+      const generateButton  = document.querySelector('.generate-btn');
+      const resultContainer = document.querySelector('#resultContainer');
+
+      generateButton.disabled = true;
+      generateButton.textContent = 'Generating...';
+        resultContainer.style.position = 'relative';
+        resultContainer.appendChild(loaderContainer);
+
+      try {
+          const requestBody = regenerate
+          ? { 
+              name: currentCelebrity, 
+              regenerate: true, 
+              originalPrompt: currentPrompt 
+            }
+          : { 
+              name: inputField.value.trim() 
+            };
+
+      if (!regenerate && !requestBody.name) {
+          throw new Error('Please enter a name!');
+        }
+          
+      if (!regenerate) {
+        currentCelebrity = requestBody.name;
+        }
+
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        if (data.url && data.prompt) {
+          currentPrompt = data.prompt;
+          displayResult(data.url);
+        } else {
+          throw new Error('No URL in response');
+        }
+      } catch (error) {
+          console.error('Error:', error);
+        const errorMessage = error.message || 'Failed to generate the image. Please try again.';
+          const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.style.cssText = `
+                color: #ff4757;
+                background: #fff;
+                padding: 2rem;
+                text-align: center;
+                font-size: 2.5rem;
+                font-weight: bold;
+                border: 8px solid #ff4757;
+                border-radius: 30px;
+                box-shadow: 
+                    0 0 0 4px #fff,
+                    0 0 0 8px #ffbe0b,
+                    0 15px 25px -5px rgba(0,0,0,0.2),
+                    0 30px 50px -12px rgba(0,0,0,0.3);
+                transform: rotate(-2deg);
+                animation: wobble 0.5s ease-in-out;
+                margin: 2rem;
+            `;
+          const style = document.createElement('style');
+            style.textContent = `
+                @keyframes wobble {
+                    0%, 100% { transform: rotate(-2deg); }
+                    25% { transform: rotate(3deg) scale(1.1); }
+                    50% { transform: rotate(-3deg); }
+                    75% { transform: rotate(2deg) scale(1.1); }
+                }
+            `;
+        document.head.appendChild(style);
+
+          errorDiv.innerHTML = `
+                <div style="font-size: 4rem; margin-bottom: 1rem">🚫 Bummer. 🚫</div>
+                <div style="font-family: 'Comic Neue', cursive;">${errorMessage}</div>
+                <div style="font-size: 3rem; margin-top: 1rem">✨ Try someone more chill ✨</div>
+            `;
+        resultContainer.innerHTML = '';
+          resultContainer.appendChild(errorDiv);
+      } finally {
+        generateButton.disabled = false;
+        generateButton.textContent = '✨ Generate! ✨';
+        if (!regenerate) {
+          inputField.disabled = false;
+        }
+
+      const loaderDiv = resultContainer.querySelector('.loader-container');
+      if (loaderDiv) {
+          loaderDiv.remove();
+        }
+      }
+    }
+    document.querySelector('.generate-btn').addEventListener('click', () => {
+      handleGeneration(false);
+    });
+    document.querySelector('.celebrity-input').addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent default form submission
+            document.querySelector('.generate-btn').click();
+        }
+    });
+    function regenerateImage() {
+      handleGeneration(true);
+    }
+    function displayResult(url) {
+      const resultContainer = document.querySelector('#resultContainer');
+      resultContainer.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = 'Generated Coloring Page';
+      img.style.maxWidth = '100%';
+      img.style.marginBottom = '20px';
+      resultContainer.appendChild(img);
+      const reactionDiv = document.createElement('div');
+      reactionDiv.className = 'reaction-container';
+      const saveIcon = document.getElementById('save-icon').outerHTML;
+      const loopIcon = document.getElementById('loop-icon').outerHTML;
+      reactionDiv.innerHTML = `
+        <button class="reaction-btn save-btn" onclick="addToGallery('${url}')" title="Save to gallery">
+          ${saveIcon}
+        </button>
+        <button class="print-btn" onclick="printPage('${url}')">PRINT</button>
+        <button class="reaction-btn loop-btn" onclick="regenerateImage()" title="Generate new variation">
+          ${loopIcon}
+        </button>
+      `;
+      
+      resultContainer.appendChild(reactionDiv);
+    }
+    function printPage(url) {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+          <head><title>Print Coloring Page</title></head>
+          <body style="margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh;">
+            <img src="${url}" style="max-width: 100%; height: auto;">
+            <script>
+              window.onload = () => {
+                window.print();
+                window.close();
+              };
+            <\/script>
+          </body>
+        </html>
+      `);
+    }
+    function addToGallery(url) {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = 'Generated Coloring Page';
+        img.style.maxWidth = '200px';
+        img.style.margin = '10px';
+        img.style.cursor = 'pointer';
+
+      img.addEventListener('click', () => {
+        displayResult(url);
+      });
+      document.querySelector('#gallery').appendChild(img);
+    }
+  </script>
+</body>
+</html>
